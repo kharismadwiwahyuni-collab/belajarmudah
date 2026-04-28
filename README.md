@@ -1,2 +1,541 @@
-# belajarmudah
-belajar mudah membuat web app untuk membantu kinerja tenaga pendidik
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Aplikasi Supervisi Manajerial v3.5 - Standar Nasional</title>
+    
+    <!-- Dependencies -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+
+    <style>
+        :root {
+            --kemdikbud-blue: #003366;
+            --kemdikbud-light: #f0f5ff;
+            --kemdikbud-accent: #00a8ff;
+            --table-header: #dee2e6;
+        }
+
+        body {
+            background-color: #f4f6f9;
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            color: #2d3436;
+        }
+
+        /* UI Styling */
+        .navbar { background-color: var(--kemdikbud-blue) !important; border-bottom: 4px solid #ffcc00; }
+        .card { border: none; border-radius: 8px; box-shadow: 0 4px 10px rgba(0,0,0,0.08); margin-bottom: 20px; }
+        .card-header { background: #fff; border-bottom: 2px solid var(--kemdikbud-light); color: var(--kemdikbud-blue); font-weight: bold; }
+        
+        .nav-tabs .nav-link { border: none; color: #636e72; font-weight: 500; padding: 12px 18px; border-radius: 5px; margin-right: 5px; background: #e9ecef; }
+        .nav-tabs .nav-link.active { background-color: var(--kemdikbud-blue) !important; color: white !important; }
+
+        .score-radio-group { display: flex; gap: 8px; justify-content: center; }
+        .btn-add-mj { background: #27ae60; color: white; font-weight: bold; border-radius: 6px; padding: 12px; width: 100%; border: none; margin-bottom: 15px; }
+
+        /* Document Export Preview Styling */
+        #print-area {
+            font-family: 'Times New Roman', Times, serif;
+            line-height: 1.5;
+            color: #000;
+            background: #white;
+        }
+        
+        .doc-table { width: 100%; border-collapse: collapse; margin-bottom: 15px; }
+        .doc-table th, .doc-table td { border: 1px solid #000; padding: 8px; font-size: 11pt; }
+        .doc-header-blue { background-color: #d9e1f2 !important; font-weight: bold; text-align: center; }
+        
+        .page-break { page-break-after: always; }
+        .no-split { page-break-inside: avoid; }
+
+        @media print { .no-print { display: none !important; } }
+    </style>
+</head>
+<body>
+
+<nav class="navbar navbar-dark no-print shadow-sm">
+    <div class="container">
+        <span class="navbar-brand fw-bold"><i class="fas fa-university me-2"></i> SUPERVISI MANAJERIAL - DIGITAL v3.5</span>
+        <div class="d-flex gap-2">
+            <button class="btn btn-sm btn-light fw-bold" onclick="resetPenilaian()">RESET SKOR</button>
+            <button class="btn btn-sm btn-outline-light" onclick="hardReset()">RESET DEFAULT</button>
+        </div>
+    </div>
+</nav>
+
+<div class="container mt-4 mb-5">
+    <!-- Form Identitas -->
+    <div class="card no-print">
+        <div class="card-body">
+            <div class="row g-3">
+                <div class="col-md-4">
+                    <label class="small fw-bold">Nama Sekolah</label>
+                    <input type="text" id="id_sekolah" class="form-control" oninput="saveID()">
+                </div>
+                <div class="col-md-4">
+                    <label class="small fw-bold">Nama Kepala Sekolah</label>
+                    <input type="text" id="id_ks" class="form-control" oninput="saveID()">
+                </div>
+                <div class="col-md-4">
+                    <label class="small fw-bold">Hari / Tanggal</label>
+                    <input type="date" id="id_tanggal" class="form-control" oninput="saveID()">
+                </div>
+                <div class="col-md-4">
+                    <label class="small fw-bold">Alamat Sekolah</label>
+                    <input type="text" id="id_alamat" class="form-control" oninput="saveID()">
+                </div>
+                <div class="col-md-4">
+                    <label class="small fw-bold">Nama Pengawas</label>
+                    <input type="text" id="id_pengawas" class="form-control" oninput="saveID()">
+                </div>
+                <div class="col-md-4">
+                    <label class="small fw-bold">NIP Pengawas</label>
+                    <input type="text" id="id_nip" class="form-control" oninput="saveID()">
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- Instrumen Area -->
+        <div class="col-lg-8">
+            <div class="no-print">
+                <ul class="nav nav-tabs scroll-x mb-3" id="mjTabs" role="tablist"></ul>
+            </div>
+            <div class="tab-content" id="mjTabsContent"></div>
+        </div>
+
+        <!-- Dashboard Sidebar -->
+        <div class="col-lg-4 no-print">
+            <div class="sticky-top" style="top: 20px;">
+                <button class="btn-add-mj" onclick="addNewMJ()">
+                    <i class="fas fa-plus-circle me-2"></i> TAMBAH INSTRUMEN BARU (MJ++)
+                </button>
+                <div class="card">
+                    <div class="card-header bg-white text-center fw-bold">HASIL PENILAIAN</div>
+                    <div class="card-body text-center">
+                        <div class="display-4 fw-bold text-primary" id="final_score_display">0</div>
+                        <div id="final_grade_label" class="badge p-2 mb-3">-</div>
+                        <canvas id="radarChart"></canvas>
+                        <hr>
+                        <div class="d-grid gap-2">
+                            <button class="btn btn-primary fw-bold" onclick="generateAnalysis()">
+                                <i class="fas fa-brain me-2"></i> GENERATE ANALISIS KRITIS
+                            </button>
+                            <button class="btn btn-outline-dark" onclick="exportDoc()">
+                                <i class="fas fa-file-word me-2"></i> UNDUH LAPORAN WORD
+                            </button>
+                            <button class="btn btn-outline-danger" onclick="exportPDF()">
+                                <i class="fas fa-file-pdf me-2"></i> UNDUH LAPORAN PDF
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Print Container (Hidden) -->
+<div id="print-area" style="display:none;"></div>
+
+<script>
+// --- DATA AWAL MJ-01 S.D MJ-10 ---
+const DEFAULT_INSTRUMEN = [
+    { id: "MJ-01", nama: "ADMINISTRASI KURIKULUM DAN PEMBELAJARAN", items: ["Dokumen KOSP (Kurikulum Operasional)", "Dokumen Kurikulum Satuan Pendidikan", "Tim Pengembang Kurikulum", "Kalender Pendidikan", "Program Pengembangan Diri", "Dokumen ATP (Alur Tujuan)", "Dokumen Modul Ajar / RPP", "Jadwal Pelajaran", "Pelaksanaan Asesmen", "Dokumen Analisis Hasil Belajar", "Program Perbaikan & Pengayaan", "Jurnal Kelas & Agenda Guru", "Ketetapan KKTP (Kriteria Ketuntasan)"] },
+    { id: "MJ-02", nama: "ADMINISTRASI KELAS", items: ["Program Semester & Tahunan", "Silabus / ATP", "Modul Ajar / RPP", "Buku Pegangan Guru & Siswa", "Buku Nilai & Analisis", "Program Perbaikan & Pengayaan", "Jadwal Pelajaran & Kalender", "Daftar Hadir & Papan Absen", "Grafik Absen & Mutasi Siswa", "Inventaris Kelas & Denah", "Catatan Prestasi & Kesehatan"] },
+    { id: "MJ-03", nama: "ADMINISTRASI DAN MANAJEMEN SEKOLAH", items: ["Program Kerja Jangka Panjang/Menengah/Pendek", "Program Supervisi Internal & Tindak Lanjut", "RAPBS / ARKAS", "Program Kerja TU", "SK Pembagian Tugas Guru/Pegawai", "SK Perangkat Sekolah", "Buku Agenda Surat & Ekspeditur", "Buku Tamu Umum & Pembinaan"] },
+    { id: "MJ-04", nama: "ORGANISASI DAN KELEMBAGAAN", items: ["Bagan Struktur Organisasi Sekolah", "Struktur Komite Sekolah & OSIS", "Akte Pendirian & Sertifikat Tanah", "MOU dengan Lembaga Lain / Industri"] },
+    { id: "MJ-05", nama: "SARANA DAN PRASARANA", items: ["Ketersediaan Ruang Kelas & Laboratorium", "Perpustakaan & Ruang Kepala Sekolah", "WC / Sanitasi, Listrik, & Air", "Jaringan Internet / WiFi", "Ruang UKS, BK, & Rumah Ibadah"] },
+    { id: "MJ-06", nama: "KETENAGAAN", items: ["Rasio Guru & Siswa", "Kualifikasi Pendidikan S1 (Minimal 60%)", "Tenaga Administrasi, Kebersihan, & Keamanan", "File Pegawai & Daftar Urut Kepangkatan (DUK)"] },
+    { id: "MJ-07", nama: "PEMBIAYAAN", items: ["Realisasi Biaya sesuai RAPBS", "Pelaporan Keuangan secara Transparan", "Dana Kreativitas Guru & Siswa", "Subsidi Silang / Bantuan Siswa Kurang Mampu"] },
+    { id: "MJ-08", nama: "PESERTA DIDIK", items: ["PPDB Selektif & Terbuka", "Buku Induk & Buku Kleper", "Data Kelulusan & Statistik Siswa", "Program Pengembangan Bakat & Ekskul"] },
+    { id: "MJ-09", nama: "PERAN SERTA MASYARAKAT", items: ["Keterlibatan Komite dalam Program Sekolah", "Laporan Kemajuan Belajar kepada Orang Tua", "Kerjasama Kerjasama Hubungan Masyarakat"] },
+    { id: "MJ-10", nama: "LINGKUNGAN BUDAYA SEKOLAH", items: ["Program Kebersihan & Keindahan (7K)", "Pembiasaan Salam, Sapa, & Sopan Santun", "Pelaksanaan Olahraga & Kas Sosial", "Peringatan Hari Besar Keagamaan/Nasional"] }
+];
+
+let appData = {
+    id: {},
+    instrumen: JSON.parse(JSON.stringify(DEFAULT_INSTRUMEN)),
+    skor: {},
+    catatan: {},
+    analisis: ""
+};
+
+let myRadar = null;
+
+// Initialization
+window.onload = () => {
+    const saved = localStorage.getItem('supman_v3_5');
+    if (saved) appData = JSON.parse(saved);
+    
+    // Load ID
+    Object.keys(appData.id).forEach(k => {
+        if(document.getElementById(`id_${k}`)) document.getElementById(`id_${k}`).value = appData.id[k];
+    });
+
+    renderAll();
+};
+
+function saveAll() {
+    localStorage.setItem('supman_v3_5', JSON.stringify(appData));
+}
+
+function saveID() {
+    ['sekolah', 'ks', 'tanggal', 'alamat', 'pengawas', 'nip'].forEach(k => {
+        appData.id[k] = document.getElementById(`id_${k}`).value;
+    });
+    saveAll();
+}
+
+function renderAll() {
+    renderTabs();
+    renderContent();
+    updateDashboard();
+}
+
+function renderTabs() {
+    const tabList = document.getElementById('mjTabs');
+    tabList.innerHTML = appData.instrumen.map((mj, idx) => `
+        <li class="nav-item">
+            <button class="nav-link ${idx === 0 ? 'active' : ''}" data-bs-toggle="tab" data-bs-target="#tab-${mj.id}">${mj.id}</button>
+        </li>
+    `).join('') + `
+        <li class="nav-item">
+            <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-analisis">ANALISIS</button>
+        </li>
+    `;
+}
+
+function renderContent() {
+    const container = document.getElementById('mjTabsContent');
+    container.innerHTML = appData.instrumen.map((mj, idx) => `
+        <div class="tab-pane fade ${idx === 0 ? 'show active' : ''}" id="tab-${mj.id}">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between">
+                    <span>${mj.id}: ${mj.nama}</span>
+                    <button class="btn btn-sm btn-danger no-print" onclick="deleteMJ('${mj.id}')"><i class="fas fa-trash"></i></button>
+                </div>
+                <div class="card-body p-0">
+                    <table class="table table-bordered table-striped mb-0">
+                        <thead class="table-light text-center">
+                            <tr><th width="50">No</th><th>Indikator</th><th width="220">Skor (1-5)</th><th width="50" class="no-print">Hapus</th></tr>
+                        </thead>
+                        <tbody>
+                            ${mj.items.map((item, i) => {
+                                const itemId = `${mj.id}_${i}`;
+                                return `
+                                <tr>
+                                    <td class="text-center">${i+1}</td>
+                                    <td>${item}</td>
+                                    <td>
+                                        <div class="score-radio-group">
+                                            ${[1,2,3,4,5].map(v => `
+                                                <div class="form-check m-0">
+                                                    <input class="form-check-input" type="radio" name="r_${itemId}" value="${v}" 
+                                                    ${appData.skor[itemId] == v ? 'checked' : ''} onclick="setSkor('${itemId}', ${v})">
+                                                    <label class="small">${v}</label>
+                                                </div>
+                                            `).join('')}
+                                        </div>
+                                    </td>
+                                    <td class="text-center no-print">
+                                        <button class="btn btn-sm text-danger" onclick="deleteItem('${mj.id}', ${i})"><i class="fas fa-times"></i></button>
+                                    </td>
+                                </tr>`;
+                            }).join('')}
+                        </tbody>
+                    </table>
+                </div>
+                <div class="card-footer bg-white no-print">
+                    <button class="btn btn-sm btn-outline-primary" onclick="addItem('${mj.id}')">+ Tambah Butir</button>
+                    <div class="mt-3">
+                        <label class="small fw-bold">Catatan / Temuan Khusus ${mj.id}:</label>
+                        <textarea class="form-control" rows="2" oninput="saveCatatan('${mj.id}', this.value)">${appData.catatan[mj.id] || ''}</textarea>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `).join('') + `
+        <div class="tab-pane fade" id="tab-analisis">
+            <div class="card">
+                <div class="card-header bg-primary text-white">NARASI HASIL ANALISIS & REKOMENDASI</div>
+                <div class="card-body">
+                    <textarea class="form-control" id="analisis_text" rows="15" oninput="saveAnalisis(this.value)">${appData.analisis}</textarea>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+// LOGIKA DATA
+function setSkor(id, val) { appData.skor[id] = val; saveAll(); updateDashboard(); }
+function saveCatatan(mj, val) { appData.catatan[mj] = val; saveAll(); }
+function saveAnalisis(val) { appData.analisis = val; saveAll(); }
+
+function addNewMJ() {
+    const name = prompt("Nama Instrumen Baru:");
+    if(name) {
+        const newId = `MJ-${(appData.instrumen.length + 1).toString().padStart(2, '0')}`;
+        appData.instrumen.push({ id: newId, nama: name.toUpperCase(), items: ["Indikator Baru"] });
+        renderAll();
+        saveAll();
+    }
+}
+
+function deleteMJ(id) {
+    if(confirm(`Hapus instrumen ${id}?`)) {
+        appData.instrumen = appData.instrumen.filter(m => m.id !== id);
+        renderAll();
+        saveAll();
+    }
+}
+
+function addItem(mjId) {
+    const txt = prompt("Nama Indikator:");
+    if(txt) {
+        const mj = appData.instrumen.find(m => m.id === mjId);
+        mj.items.push(txt);
+        renderContent();
+        saveAll();
+    }
+}
+
+function deleteItem(mjId, idx) {
+    const mj = appData.instrumen.find(m => m.id === mjId);
+    mj.items.splice(idx, 1);
+    renderContent();
+    saveAll();
+}
+
+function calculateScoreMJ(mjId) {
+    const mj = appData.instrumen.find(m => m.id === mjId);
+    let total = 0;
+    mj.items.forEach((_, i) => total += (appData.skor[`${mjId}_${i}`] || 0));
+    const max = mj.items.length * 5;
+    return max > 0 ? (total / max) * 100 : 0;
+}
+
+function updateDashboard() {
+    let grandTotal = 0;
+    const scores = appData.instrumen.map(mj => {
+        const s = calculateScoreMJ(mj.id);
+        grandTotal += s;
+        return s;
+    });
+
+    const finalAvg = appData.instrumen.length > 0 ? (grandTotal / appData.instrumen.length).toFixed(2) : 0;
+    document.getElementById('final_score_display').innerText = finalAvg;
+
+    const lbl = document.getElementById('final_grade_label');
+    const info = getGrade(finalAvg);
+    lbl.innerText = info.label;
+    lbl.className = `badge p-2 mb-3 bg-${info.color}`;
+
+    updateChart(scores);
+}
+
+function getGrade(s) {
+    if(s > 90) return { label: "BS (Amat Baik)", color: "success" };
+    if(s > 75) return { label: "B (Baik)", color: "primary" };
+    if(s > 60) return { label: "C (Cukup)", color: "warning" };
+    return { label: "K (Kurang)", color: "danger" };
+}
+
+function updateChart(data) {
+    const ctx = document.getElementById('radarChart').getContext('2d');
+    if(myRadar) myRadar.destroy();
+    myRadar = new Chart(ctx, {
+        type: 'radar',
+        data: {
+            labels: appData.instrumen.map(m => m.id),
+            datasets: [{ label: 'Capaian %', data: data, backgroundColor: 'rgba(0, 51, 102, 0.2)', borderColor: '#003366' }]
+        },
+        options: { scales: { r: { min: 0, max: 100 } } }
+    });
+}
+
+function generateAnalysis() {
+    const score = parseFloat(document.getElementById('final_score_display').innerText);
+    const info = getGrade(score);
+    
+    let text = `LAPORAN ANALISIS SUPERVISI MANAJERIAL\n`;
+    text += `Satuan Pendidikan: ${appData.id.sekolah || '-'}\n`;
+    text += `==========================================\n\n`;
+    
+    text += `1. TEMUAN UMUM\n`;
+    text += `Berdasarkan hasil observasi dan verifikasi dokumen, satuan pendidikan memperoleh skor rata-rata ${score} (${info.label}). `;
+    
+    if(score > 90) {
+        text += `Sekolah menunjukkan tata kelola manajerial yang sangat ekselen dan sistemik. Seluruh komponen Kurikulum Merdeka telah diinternalisasi dengan sangat baik dalam administrasi sekolah.\n\n`;
+    } else if(score > 75) {
+        text += `Sekolah telah memenuhi standar pelayanan minimal manajerial dengan baik, namun masih terdapat beberapa celah administratif yang memerlukan sinkronisasi lebih lanjut.\n\n`;
+    } else {
+        text += `Sekolah memerlukan pembinaan intensif terkait pemenuhan dokumen standar manajerial. Terdapat indikasi manajemen operasional belum berjalan optimal sesuai regulasi terbaru.\n\n`;
+    }
+
+    text += `2. ANALISIS KRITIS PER KOMPONEN\n`;
+    appData.instrumen.forEach(mj => {
+        const s = calculateScoreMJ(mj.id);
+        text += `- ${mj.id}: Capaian ${s.toFixed(2)}%. `;
+        if(s < 70) text += `Komponen ini kritis dan memerlukan audit internal segera. `;
+        else if (s < 90) text += `Sudah berjalan namun perlu penguatan dokumentasi. `;
+        else text += `Sangat baik, perlu dipertahankan sebagai best practice. `;
+        if(appData.catatan[mj.id]) text += `(Catatan: ${appState.catatan[mj.id]})`;
+        text += `\n`;
+    });
+
+    text += `\n3. REKOMENDASI SOLUTIF\n`;
+    text += `- Segera lakukan pemutakhiran dokumen sesuai temuan per instrumen.\n`;
+    text += `- Penguatan digitalisasi administrasi untuk memudahkan monitoring.\n`;
+    text += `- Kepala sekolah agar melakukan supervisi internal secara berkala.\n`;
+
+    appData.analisis = text;
+    document.getElementById('analisis_text').value = text;
+    saveAll();
+}
+
+// --- EXPORT ENGINE ---
+function prepareDoc() {
+    const area = document.getElementById('print-area');
+    const finalScore = document.getElementById('final_score_display').innerText;
+    const grade = getGrade(parseFloat(finalScore)).label;
+
+    let html = `
+        <div style="padding: 20mm; background: white;">
+            <div style="text-align: center; border-bottom: 3px double #000; padding-bottom: 10px; margin-bottom: 20px;">
+                <h2 style="margin:0;">LAPORAN SUPERVISI MANAJERIAL</h2>
+                <h3 style="margin:5px 0;">SATUAN PENDIDIKAN</h3>
+                <p style="margin:0;">Tahun Ajaran 2024/2025</p>
+            </div>
+
+            <table border="0" style="width:100%; margin-bottom: 20px; font-size: 11pt;">
+                <tr><td width="25%">Nama Sekolah</td><td>: ${appData.id.sekolah || '-'}</td></tr>
+                <tr><td>Alamat</td><td>: ${appData.id.alamat || '-'}</td></tr>
+                <tr><td>Nama Kepala Sekolah</td><td>: ${appData.id.ks || '-'}</td></tr>
+                <tr><td>Nama Pengawas</td><td>: ${appData.id.pengawas || '-'}</td></tr>
+                <tr><td>NIP Pengawas</td><td>: ${appData.id.nip || '-'}</td></tr>
+                <tr><td>Tanggal Supervisi</td><td>: ${appData.id.tanggal || '-'}</td></tr>
+            </table>
+
+            <h4 style="text-transform: uppercase; border-left: 5px solid #003366; padding-left: 10px;">I. REKAPITULASI HASIL</h4>
+            <table class="doc-table">
+                <tr class="doc-header-blue">
+                    <th>KODE</th><th>KOMPONEN PENILAIAN</th><th>SKOR (%)</th><th>KLASIFIKASI</th>
+                </tr>
+                ${appData.instrumen.map(mj => {
+                    const s = calculateScoreMJ(mj.id);
+                    return `<tr>
+                        <td align="center">${mj.id}</td>
+                        <td>${mj.nama}</td>
+                        <td align="center">${s.toFixed(2)}</td>
+                        <td align="center">${getGrade(s).label}</td>
+                    </tr>`;
+                }).join('')}
+                <tr style="background:#ffffcc; font-weight:bold;">
+                    <td colspan="2" align="right">RATA-RATA TOTAL</td>
+                    <td align="center">${finalScore}</td>
+                    <td align="center">${grade}</td>
+                </tr>
+            </table>
+
+            <div class="page-break"></div>
+            <h4 style="text-transform: uppercase; border-left: 5px solid #003366; padding-left: 10px;">II. DETAIL INSTRUMEN</h4>
+    `;
+
+    appData.instrumen.forEach(mj => {
+        html += `
+            <div class="no-split">
+                <p style="font-weight:bold; margin-top:20px; background:#f2f2f2; padding:5px;">${mj.id}: ${mj.nama}</p>
+                <table class="doc-table">
+                    <tr class="doc-header-blue">
+                        <th width="30">No</th><th>Indikator/Butir Penilaian</th><th width="60">Skor</th>
+                    </tr>
+                    ${mj.items.map((it, i) => `
+                        <tr>
+                            <td align="center">${i+1}</td>
+                            <td>${it}</td>
+                            <td align="center">${appData.skor[`${mj.id}_${i}`] || 0}</td>
+                        </tr>
+                    `).join('')}
+                </table>
+                <p style="font-size:10pt;"><i>Temuan: ${appData.catatan[mj.id] || '-'}</i></p>
+            </div>
+        `;
+    });
+
+    html += `
+            <div class="page-break"></div>
+            <h4 style="text-transform: uppercase; border-left: 5px solid #003366; padding-left: 10px;">III. NARASI ANALISIS & REKOMENDASI</h4>
+            <div style="border: 1px solid #000; padding: 15px; min-height: 400px; white-space: pre-wrap; font-size: 11pt;">${appData.analisis}</div>
+
+            <br><br>
+            <table border="0" style="width:100%; text-align: center; margin-top: 50px;">
+                <tr>
+                    <td width="45%">Mengetahui,<br>Kepala Sekolah<br><br><br><br><strong>( ${appData.id.ks || '................'} )</strong></td>
+                    <td width="10%"></td>
+                    <td width="45%">Pengawas Satuan Pendidikan,<br><br><br><br><strong>( ${appData.id.pengawas || '................'} )</strong><br>NIP. ${appData.id.nip || '-'}</td>
+                </tr>
+            </table>
+        </div>
+    `;
+
+    area.innerHTML = html;
+}
+
+function exportPDF() {
+    prepareDoc();
+    const el = document.getElementById('print-area');
+    el.style.display = 'block';
+    const opt = {
+        margin: 0,
+        filename: `LAPORAN_SUPERVISI_${appData.id.sekolah}.pdf`,
+        image: { type: 'jpeg', quality: 0.98 },
+        html2canvas: { scale: 2 },
+        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+    };
+    html2pdf().set(opt).from(el).save().then(() => el.style.display = 'none');
+}
+
+function exportDoc() {
+    prepareDoc();
+    const content = document.getElementById('print-area').innerHTML;
+    const header = `<html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'><head><meta charset='utf-8'><style>
+        @page { size: A4; margin: 2cm; }
+        body { font-family: 'Times New Roman', serif; }
+        table { border-collapse: collapse; width: 100%; margin-bottom: 15px; }
+        th, td { border: 1px solid black; padding: 5px; font-size: 11pt; }
+        .doc-header-blue { background-color: #d9e1f2; }
+    </style></head><body>${content}</body></html>`;
+    
+    const blob = new Blob(['\ufeff', header], { type: 'application/msword' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `LAPORAN_SUPERVISI_${appData.id.sekolah}.doc`;
+    link.click();
+}
+
+function resetPenilaian() {
+    if(confirm("Hapus semua skor?")) {
+        appData.skor = {};
+        appData.catatan = {};
+        appData.analisis = "";
+        renderAll();
+        saveAll();
+    }
+}
+
+function hardReset() {
+    if(confirm("Reset ke pengaturan awal pabrik (Hapus semua kustomisasi)?")) {
+        localStorage.removeItem('supman_v3_5');
+        location.reload();
+    }
+}
+</script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
